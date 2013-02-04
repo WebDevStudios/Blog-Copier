@@ -277,6 +277,20 @@ if ( !class_exists('BlogCopier') ) {
 					'admin_email'=>'',
 					'blogname'=>''
 				);
+
+				// Tables that should be ignored, when copying the main site.
+				$ignored_tables = array(
+					'wp_blogs',
+					'wp_blog_versions',
+					'wp_registration_log',
+					'wp_signups',
+					'wp_site',
+					'wp_sitecategories',
+					'wp_sitemeta',
+					'wp_users',
+					'wp_usermeta'
+				);
+
 				// Options that should be preserved in the new blog.
 				$saved_options = apply_filters('copy_blog_data_saved_options', $saved_options);
 				foreach($saved_options as $option_name => $option_value) {
