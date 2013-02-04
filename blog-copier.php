@@ -278,19 +278,6 @@ if ( !class_exists('BlogCopier') ) {
 					'blogname'=>''
 				);
 
-				// Tables that should be ignored, when copying the main site.
-				$ignored_tables = array(
-					'wp_blogs',
-					'wp_blog_versions',
-					'wp_registration_log',
-					'wp_signups',
-					'wp_site',
-					'wp_sitecategories',
-					'wp_sitemeta',
-					'wp_users',
-					'wp_usermeta'
-				);
-
 				// Options that should be preserved in the new blog.
 				$saved_options = apply_filters('copy_blog_data_saved_options', $saved_options);
 				foreach($saved_options as $option_name => $option_value) {
@@ -298,9 +285,34 @@ if ( !class_exists('BlogCopier') ) {
 				}
 
 				// Copy over ALL the tables.
-				$query = $wpdb->prepare('SHOW TABLES LIKE %s',$from_blog_prefix.'%');
+				if ( 1 == $from_blog_id ) {
+					//Using DB_NAME constant so that we're not selecting EVERY table from main site. Some are global
+					$table_clause = 'Tables_in_' . DB_NAME;
+					$regexp = $wpdb->prefix . '[0-9]';
+					$escaped = esc_sql( "SHOW TABLES WHERE $table_clause NOT REGEXP \'$regexp\'" );
+					$query = $wpdb->prepare( "SHOW TABLES WHERE $table_clause NOT REGEXP %s", $regexp );
+				} else {
+					$query = $wpdb->prepare('SHOW TABLES LIKE %s',$from_blog_prefix.'%');
+				}
 				do_action( 'log', $query, $this->_domain);
 				$old_tables = $wpdb->get_col($query);
+
+				if ( 1 == $from_blog_id ) {
+					// Tables that should be ignored, when copying the main site.
+					$ignored_tables = array(
+						'wp_blogs',
+						'wp_blog_versions',
+						'wp_registration_log',
+						'wp_signups',
+						'wp_site',
+						'wp_sitecategories',
+						'wp_sitemeta',
+						'wp_users',
+						'wp_usermeta'
+					);
+
+					$old_tables = array_diff( $old_tables, $ignored_tables );
+				}
 
 				foreach ($old_tables as $k => $table) {
 					$raw_table_name = substr( $table, $from_blog_prefix_length );
@@ -353,9 +365,17 @@ if ( !class_exists('BlogCopier') ) {
 		 * @param int $to_blog_id ID of the blog being copied to.
 		 */
 		private function copy_blog_files( $from_blog_id, $to_blog_id ) {
+			global $wp_version;
+			$theuploads = wp_upload_dir();
 			set_time_limit( 600 ); // 60 seconds x 10 minutes
 			@ini_set('memory_limit','1024M');
-			$base = WP_CONTENT_DIR . '/blogs.dir/';
+			if ( version_compare( $wp_version, '3.5', '>' ) && false !== strpos( $theuploads['url'], 'sites' ) ) {
+				$base = WP_CONTENT_DIR . '/uploads/sites/';
+			} elseif ( version_compare( $wp_version, '3.5', '>' ) && false === strpos( $theuploads['url'], 'sites' ) ) {
+				$base = WP_CONTENT_DIR . '/uploads/';
+			} else {
+				$base = WP_CONTENT_DIR . '/blogs.dir/';
+			}
 			// Path to source blog files.
 			$from = apply_filters('copy_blog_files_from', trailingslashit( $base . $from_blog_id ), $base, $from_blog_id);
 			// Path to destination blog files.
