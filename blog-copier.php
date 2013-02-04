@@ -124,7 +124,7 @@ if ( !class_exists('BlogCopier') ) {
 			}
 			if( !$from_blog ) {
 				$query = "SELECT b.blog_id, CONCAT(b.domain, b.path) as domain_path FROM {$wpdb->blogs} b " .
-					"WHERE b.site_id = {$current_site->id} && b.blog_id > 1 ORDER BY domain_path ASC LIMIT 10000";
+					"WHERE b.site_id = {$current_site->id} && b.blog_id > 0 ORDER BY domain_path ASC LIMIT 10000";
 
 				$blogs = $wpdb->get_results( $query );
 			}
