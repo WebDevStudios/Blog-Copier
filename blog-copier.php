@@ -212,10 +212,10 @@ if ( !class_exists('BlogCopier') ) {
 			$user_id = apply_filters('copy_blog_user_id', $user_id, $from_blog_id);
 
 			if( is_subdomain_install() ) {
-				$newdomain = $domain.".".$current_site->domain;
+				$newdomain = trailingslashit($domain.".".$current_site->domain);
 				$path = $base;
 			} else {
-				$newdomain = $current_site->domain;
+				$newdomain = trailingslashit($current_site->domain);
 				$path = trailingslashit($base.$domain);
 			}
 
