@@ -94,8 +94,7 @@ if ( !class_exists('BlogCopier') ) {
 					$from_blog = false;
 				}
 			}
-			if( isset( $_POST['source_blog'] ) )
-				$from_blog_id = (int) $_POST['source_blog'];
+			$from_blog_id = ( isset( $_POST['source_blog'] ) ) ? (int) $_POST['source_blog'] : '';
 
 			if( isset($_POST[ 'action' ]) && $_POST[ 'action' ] == $this->_domain ) {
 				check_admin_referer( $this->_domain );
