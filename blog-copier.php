@@ -300,6 +300,7 @@ if ( !class_exists('BlogCopier') ) {
 				if ( 1 == $from_blog_id ) {
 					// Tables that should be ignored, when copying the main site.
 					$ignored_tables = array(
+<<<<<<< HEAD
 						$wpdb->prefix . 'blogs',
 						$wpdb->prefix . 'blog_versions',
 						$wpdb->prefix . 'registration_log',
@@ -310,6 +311,19 @@ if ( !class_exists('BlogCopier') ) {
 						$wpdb->prefix . 'users',
 						$wpdb->prefix . 'usermeta'
 					);
+=======
+						'wp_blogs',
+						'wp_blog_versions',
+						'wp_registration_log',
+						'wp_signups',
+						'wp_site',
+						'wp_sitecategories',
+						'wp_sitemeta',
+						'wp_users',
+						'wp_usermeta'
+					);
+
+>>>>>>> 22426b9f2139710f0b9cab803007f119b13a4c20
 					$old_tables = array_diff( $old_tables, $ignored_tables );
 				}
 
@@ -317,15 +331,15 @@ if ( !class_exists('BlogCopier') ) {
 					$raw_table_name = substr( $table, $from_blog_prefix_length );
 					$newtable = $to_blog_prefix . $raw_table_name;
 
-					$query = $wpdb->prepare("DROP TABLE IF EXISTS {$newtable}");
+					$query = $wpdb->prepare("DROP TABLE IF EXISTS %s", $newtable);
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 
-					$query = $wpdb->prepare("CREATE TABLE IF NOT EXISTS {$newtable} LIKE {$table}");
+					$query = $wpdb->prepare("CREATE TABLE IF NOT EXISTS %s LIKE %s", $newtable, $table);
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 
-					$query = $wpdb->prepare("INSERT {$newtable} SELECT * FROM {$table}");
+					$query = $wpdb->prepare("INSERT %s SELECT * FROM %s", $newtable, $table);
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 				}
