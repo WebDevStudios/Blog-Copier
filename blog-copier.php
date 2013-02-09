@@ -378,11 +378,12 @@ if ( !class_exists('BlogCopier') ) {
 			// Path to source blog files.
 			if ( is_main_site() ) {
 				$from = apply_filters('copy_blog_files_from', WP_CONTENT_DIR . '/uploads/'); //[0-9]*
+				$to = apply_filters('copy_blog_files_to', trailingslashit( $base . $to_blog_id ), $base, $to_blog_id);
 			} else {
 				$from = apply_filters('copy_blog_files_from', trailingslashit( $base . $from_blog_id ), $base, $from_blog_id);
+				$to = apply_filters('copy_blog_files_to', trailingslashit( $base . $to_blog_id ), $base, $to_blog_id);
 			}
 			// Path to destination blog files.
-			$to = apply_filters('copy_blog_files_to', trailingslashit( $base . $to_blog_id ), $base, $to_blog_id);
 			// Shell command used to copy files.
 			$command = apply_filters('copy_blog_files_command', "cp -rfp $from $to", $from, $to );
 			exec($command);
