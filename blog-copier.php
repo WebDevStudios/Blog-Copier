@@ -239,7 +239,7 @@ if ( !class_exists('BlogCopier') ) {
 					update_user_option( $user_id, 'primary_blog', $to_blog_id, true );
 
 				// now copy
-				if( $from_blog_id ) {
+				if( $from_blog_id >= 0 ) {
 
 					$this->copy_blog_data( $from_blog_id, $to_blog_id );
 
@@ -266,7 +266,7 @@ if ( !class_exists('BlogCopier') ) {
 		 */
 		private function copy_blog_data( $from_blog_id, $to_blog_id ) {
 			global $wpdb, $wp_version;
-			if( $from_blog_id ) {
+			if( $from_blog_id >= 0 ) {
 				$from_blog_prefix = $this->get_blog_prefix( $from_blog_id );
 				$to_blog_prefix = $this->get_blog_prefix( $to_blog_id );
 				$from_blog_prefix_length = strlen($from_blog_prefix);
