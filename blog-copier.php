@@ -3,7 +3,7 @@
 Plugin Name: Blog Copier
 Plugin URI: http://wordpress.org/extend/plugins/blog-copier/
 Description: Enables superusers to copy existing sub blogs to new sub blogs.
-Version: 1.0.4
+Version: 1.0.2
 Author: Modern Tribe, Inc.
 Network: true
 Author URI: http://tri.be
@@ -33,11 +33,6 @@ if ( !defined('ABSPATH') )
 
 if ( !class_exists('BlogCopier') ) {
 
-	/**
-	 * Blog Copier
-	 *
-	 * @package BlogCopier
-	 */
 	class BlogCopier {
 
 		private $_name;
@@ -99,7 +94,7 @@ if ( !class_exists('BlogCopier') ) {
 					$from_blog = false;
 				}
 			}
-			$from_blog_id = ( isset( $_POST['source_blog'] ) ) ? (int) $_POST['source_blog'] : -1;
+			$from_blog_id = ( isset( $_POST['source_blog'] ) ) ? (int) $_POST['source_blog'] : '';
 
 			if( isset($_POST[ 'action' ]) && $_POST[ 'action' ] == $this->_domain ) {
 				check_admin_referer( $this->_domain );
@@ -128,7 +123,7 @@ if ( !class_exists('BlogCopier') ) {
 			}
 			if( !$from_blog ) {
 				$query = "SELECT b.blog_id, CONCAT(b.domain, b.path) as domain_path FROM {$wpdb->blogs} b " .
-					"WHERE b.site_id = {$current_site->id} && b.blog_id > 1 ORDER BY domain_path ASC LIMIT 10000";
+					"WHERE b.site_id = {$current_site->id} && b.blog_id > 0 ORDER BY domain_path ASC LIMIT 10000";
 
 				$blogs = $wpdb->get_results( $query );
 			}
@@ -203,7 +198,7 @@ if ( !class_exists('BlogCopier') ) {
 		 * @param bool $copy_files true if files should be copied
 		 * @return string status message
 		 */
-		public function copy_blog($domain, $title, $from_blog_id = 0, $copy_files = true) {
+		private function copy_blog($domain, $title, $from_blog_id = 0, $copy_files = true) {
 			global $wpdb, $current_site, $base;
 
 			$email = get_blog_option( $from_blog_id, 'admin_email' );
@@ -216,10 +211,10 @@ if ( !class_exists('BlogCopier') ) {
 			$user_id = apply_filters('copy_blog_user_id', $user_id, $from_blog_id);
 
 			if( is_subdomain_install() ) {
-				$newdomain = $domain.".".$current_site->domain;
+				$newdomain = trailingslashit($domain.".".$current_site->domain);
 				$path = $base;
 			} else {
-				$newdomain = $current_site->domain;
+				$newdomain = trailingslashit($current_site->domain);
 				$path = trailingslashit($base.$domain);
 			}
 
@@ -271,7 +266,6 @@ if ( !class_exists('BlogCopier') ) {
 				$to_blog_prefix = $this->get_blog_prefix( $to_blog_id );
 				$from_blog_prefix_length = strlen($from_blog_prefix);
 				$to_blog_prefix_length = strlen($to_blog_prefix);
-				$from_blog_escaped_prefix = str_replace( '_', '\_', $from_blog_prefix );
 
 				// Grab key options from new blog.
 				$saved_options = array(
@@ -283,6 +277,7 @@ if ( !class_exists('BlogCopier') ) {
 					'admin_email'=>'',
 					'blogname'=>''
 				);
+
 				// Options that should be preserved in the new blog.
 				$saved_options = apply_filters('copy_blog_data_saved_options', $saved_options);
 				foreach($saved_options as $option_name => $option_value) {
@@ -290,23 +285,47 @@ if ( !class_exists('BlogCopier') ) {
 				}
 
 				// Copy over ALL the tables.
-				$query = $wpdb->prepare('SHOW TABLES LIKE %s',$from_blog_escaped_prefix.'%');
+				if ( 1 == $from_blog_id ) {
+					//Using DB_NAME constant so that we're not selecting EVERY table from main site. Some are global
+					$table_clause = 'Tables_in_' . DB_NAME;
+					$regexp = $wpdb->prefix . '[0-9]';
+					$escaped = esc_sql( "SHOW TABLES WHERE $table_clause NOT REGEXP \'$regexp\'" );
+					$query = $wpdb->prepare( "SHOW TABLES WHERE $table_clause NOT REGEXP %s", $regexp );
+				} else {
+					$query = $wpdb->prepare('SHOW TABLES LIKE %s',$from_blog_prefix.'%');
+				}
 				do_action( 'log', $query, $this->_domain);
 				$old_tables = $wpdb->get_col($query);
+
+				if ( 1 == $from_blog_id ) {
+					// Tables that should be ignored, when copying the main site.
+					$ignored_tables = array(
+						$wpdb->prefix . 'blogs',
+						$wpdb->prefix . 'blog_versions',
+						$wpdb->prefix . 'registration_log',
+						$wpdb->prefix . 'signups',
+						$wpdb->prefix . 'site',
+						$wpdb->prefix . 'sitecategories',
+						$wpdb->prefix . 'sitemeta',
+						$wpdb->prefix . 'users',
+						$wpdb->prefix . 'usermeta'
+					);
+					$old_tables = array_diff( $old_tables, $ignored_tables );
+				}
 
 				foreach ($old_tables as $k => $table) {
 					$raw_table_name = substr( $table, $from_blog_prefix_length );
 					$newtable = $to_blog_prefix . $raw_table_name;
 
-					$query = "DROP TABLE IF EXISTS {$newtable}";
+					$query = $wpdb->prepare("DROP TABLE IF EXISTS {$newtable}");
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 
-					$query = "CREATE TABLE IF NOT EXISTS {$newtable} LIKE {$table}";
+					$query = $wpdb->prepare("CREATE TABLE IF NOT EXISTS {$newtable} LIKE {$table}");
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 
-					$query = "INSERT {$newtable} SELECT * FROM {$table}";
+					$query = $wpdb->prepare("INSERT {$newtable} SELECT * FROM {$table}");
 					do_action( 'log', $query, $this->_domain);
 					$wpdb->get_results($query);
 				}
@@ -314,11 +333,13 @@ if ( !class_exists('BlogCopier') ) {
 				// apply key opptions from new blog.
 				switch_to_blog( $to_blog_id );
 				foreach( $saved_options as $option_name => $option_value ) {
-					update_option( $option_name, $option_value );
+					if (!empty( $option_value )) {
+						update_option( $option_name, $option_value );
+					}
 				}
 
 				/// fix all options with the wrong prefix...
-				$query = $wpdb->prepare("SELECT * FROM {$wpdb->options} WHERE option_name LIKE %s",$from_blog_escaped_prefix.'%');
+				$query = $wpdb->prepare("SELECT * FROM {$wpdb->options} WHERE option_name LIKE %s",$from_blog_prefix.'%');
 				$options = $wpdb->get_results( $query );
 				do_action( 'log', $query, $this->_domain, count($options).' results found.');
 				if( $options ) {
@@ -343,25 +364,28 @@ if ( !class_exists('BlogCopier') ) {
 		 * @param int $to_blog_id ID of the blog being copied to.
 		 */
 		private function copy_blog_files( $from_blog_id, $to_blog_id ) {
-			set_time_limit( 2400 ); // 60 seconds x 10 minutes
-			@ini_set('memory_limit','2048M');
-
+			global $wp_version;
+			$theuploads = wp_upload_dir();
+			set_time_limit( 600 ); // 60 seconds x 10 minutes
+			@ini_set('memory_limit','1024M');
+			if ( version_compare( $wp_version, '3.5', '>' ) && false !== strpos( $theuploads['url'], 'sites' ) ) {
+				$base = WP_CONTENT_DIR . '/uploads/sites/';
+			} elseif ( version_compare( $wp_version, '3.5', '>' ) && false === strpos( $theuploads['url'], 'sites' ) ) {
+				$base = WP_CONTENT_DIR . '/uploads/';
+			} else {
+				$base = WP_CONTENT_DIR . '/blogs.dir/';
+			}
 			// Path to source blog files.
-			switch_to_blog($from_blog_id);
-			$dir_info = wp_upload_dir();
-			$from = str_replace(' ', "\\ ", trailingslashit($dir_info['basedir']).'*'); // * necessary with GNU cp, doesn't hurt anything with BSD cp
-			restore_current_blog();
-			$from = apply_filters('copy_blog_files_from', $from, $from_blog_id);
-
+			if ( is_main_site() ) {
+				$from = apply_filters('copy_blog_files_from', WP_CONTENT_DIR . '/uploads/'); //[0-9]*
+				$to = apply_filters('copy_blog_files_to', trailingslashit( $base . $to_blog_id ), $base, $to_blog_id);
+			} else {
+				$from = apply_filters('copy_blog_files_from', trailingslashit( $base . $from_blog_id ), $base, $from_blog_id);
+				$to = apply_filters('copy_blog_files_to', trailingslashit( $base . $to_blog_id ), $base, $to_blog_id);
+			}
 			// Path to destination blog files.
-			switch_to_blog($to_blog_id);
-			$dir_info = wp_upload_dir();
-			$to = str_replace(' ', "\\ ", trailingslashit($dir_info['basedir']));
-			restore_current_blog();
-			$to = apply_filters('copy_blog_files_to', $to, $to_blog_id);
-
 			// Shell command used to copy files.
-			$command = apply_filters('copy_blog_files_command', sprintf("cp -Rfp %s %s", $from, $to), $from, $to );
+			$command = apply_filters('copy_blog_files_command', "cp -rfp $from $to", $from, $to );
 			exec($command);
 		}
 
